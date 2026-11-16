@@ -221,48 +221,69 @@ $("share").addEventListener("click", async ()=>{
   try{ await navigator.share({files:[lastFile], title:lastFile.name}); }catch(e){}
 });
 /*PARSE_START*/
-// ปรับรายชื่อยี่ห้อที่พบบ่อยได้ที่นี่ (เขียนตัวพิมพ์ใหญ่ ตรงกับที่ปรากฏบนป้าย)
+// ปรับรายชื่อยี่ห้อที่พบบ่อยได้ที่นี่ (ตัวพิมพ์ใหญ่ ตรงกับที่ปรากฏบนป้าย) ใช้เมื่ออ่านชื่อจากบรรทัด "CO.,LTD." ไม่ได้
 const BRANDS = ["THAI MAXWELL","MAXWELL","PACIFIC","SIEMENS","HITACHI","TOSHIBA","MITSUBISHI","SCHNEIDER","ABB"];
 function parsePlate(raw){
   const T = String(raw||"").replace(/\r/g,"\n").replace(/[ \t\u00A0]+/g," ").toUpperCase();
   const out = {};
   const num = s => s.replace(",",".");
   let m;
-  // kVA
-  m = T.match(/(\d{1,5}(?:[.,]\d+)?)\s*K\s*V\s*A\b/) || T.match(/K\s*V\s*A\b\D{0,12}?(\d{2,5}(?:[.,]\d+)?)/);
-  if(m) out.kva = num(m[1]);
-  // Phase
-  m = T.match(/\b([13])\s*[- ]?\s*(?:PHASE|PH\b|เฟส)/) || T.match(/PHASE\D{0,6}([13])\b/);
-  if(m) out.phase = m[1];
+
+  // หาตัวเลขที่ตามหลังคำนำหน้า (label) — ลองหาในบรรทัดเดียวกันก่อน แล้วค่อยลองบรรทัดถัดไป
+  function pick(labelSrc, ok){
+    for(const gap of ["[^\\d\\n]{0,25}?", "[^\\d]{0,40}?"]){
+      const re = new RegExp("(?:"+labelSrc+")"+gap+"(\\d{1,6}(?:[.,]\\d{1,3})?)(?![\\d])","g");
+      let x;
+      while((x=re.exec(T))){
+        const v = num(x[1]);
+        if(!ok || ok(parseFloat(v))) return v;
+        if(re.lastIndex===x.index) re.lastIndex++;
+      }
+    }
+    return "";
+  }
+  // คำนำหน้าที่พบบนป้าย
+  const PRI = "PRI(?:MARY)?\\.?|H\\.?\\s?V\\.?|HIGH\\s*(?:VOLT(?:AGE)?|SIDE)|แรงสูง";
+  const SEC = "SEC(?:ONDARY)?\\.?|L\\.?\\s?V\\.?|LOW\\s*(?:VOLT(?:AGE)?|SIDE)|แรงต่ำ";
+  const VOLT = "\\s*(?:VOLT(?:AGE)?S?|V)\\b\\.?";
+  const AMP  = "\\s*(?:AMP(?:S|ERES?)?|CURRENT|A)\\b\\.?";
+  const wrap = (side, unit) => "(?:"+side+")"+unit;
+
   // Serial
-  m = T.match(/(?:SERIAL\s*(?:NO|NUMBER)?|SER\.?\s*NO|S\/N)\.?\s*[:.#-]?\s*([A-Z0-9][A-Z0-9\-\/.]{3,})/)
+  m = T.match(/(?:SERIAL\s*(?:NO|NUMBER)?|SER\.?\s*NO|S\/N)[.,]?\s*[:.,#-]?\s*([A-Z0-9][A-Z0-9\-\/.]{3,})/)
    || T.match(/(?:หมายเลขเครื่อง|เลขที่เครื่อง)\s*[:.]?\s*([A-Z0-9][A-Z0-9\-\/]{3,})/);
   let T2 = T;
   if(m){ out.serial = m[1].replace(/[.\-\/]+$/,""); T2 = T2.split(m[0]).join(" "); }
+
   // PEA number
   m = T.match(/PEA\W{0,3}(?:TR)?\W{0,3}(\d{5,8})/) || T.match(/PEA\s*NO\.?\s*[:.]?\s*([A-Z0-9\-\/]{4,})/);
   if(m){ out.pea = m[1]; T2 = T2.split(m[0]).join(" "); }
-  // Brand
-  m = T.match(/(?:MANUFACTURER|MANUFACTURED BY|MADE BY|BRAND|TRADEMARK|ผู้ผลิต|ยี่ห้อ)\s*[:.]?\s*([^\n]{2,40})/);
-  if(m) out.brand = m[1].trim();
+
+  // kVA
+  m = T.match(/(\d{1,5}(?:[.,]\d+)?)[ \t]*K[ \t]*V[ \t]*A\b/);
+  if(m) out.kva = num(m[1]);
   else {
-    const b = BRANDS.find(x=>new RegExp("(^|[^A-Z])"+x.replace(/ /g,"\\s+")+"($|[^A-Z])").test(T));
-    if(b) out.brand = b;
+    const v = pick("RATED\\s*POW[A-Z]*|RATING|CAPACITY|พิกัด|K\\s*V\\s*A", n=>n>=1 && n<=100000);
+    if(v) out.kva = v;
   }
-  // Impedance (ต้องมีเครื่องหมาย %)
-  m = T.match(/(?:IMPEDANCE|%\s*Z|Z\s*%)[^%\n]{0,40}?(\d{1,2}(?:[.,]\d{1,3})?)\s*%/);
+
+  // Phase
+  if(/THREE[\s-]*PHASE|\b3[\s-]*(?:PHASE|PH\b)|3\s*Φ|3 เฟส/.test(T)) out.phase = "3";
+  else if(/SINGLE[\s-]*PHASE|\b1[\s-]*(?:PHASE|PH\b)|1\s*Φ|1 เฟส/.test(T)) out.phase = "1";
+  else { m = T.match(/PHASE\D{0,6}([13])\b/); if(m) out.phase = m[1]; }
+
+  // Impedance — คำว่า IMP. / IMPEDANCE / %Z แล้วตามด้วยตัวเลขที่มี %
+  const IMP = "IMP(?:EDANCE)?\\.?(?:\\s*VOLT(?:AGE)?\\.?)?|%\\s*Z|Z\\s*%|\\bUK\\b|อิมพีแดนซ์";
+  m = T.match(new RegExp("(?:"+IMP+")[^%]{0,45}?(\\d{1,2}(?:[.,]\\d{1,3})?)\\s*%"))
+   || T.match(new RegExp("(?:"+IMP+")[^\\n]{0,30}?(\\d{1,2}[.,]\\d{1,3})\\b"));
   if(m) out.imp = num(m[1]);
-  // Voltage (ตัดเลข Serial/PEA ออกก่อน กันสับสน)
-  m = T2.match(/(\d{4,6})\s*[\/\-–]\s*(\d{3})\s*V?/);
+
+  // Voltage
+  m = T2.match(/\b(\d{4,6})\s*[\/\-–]\s*(\d{3})\s*V?\b/);
   if(m){ out.pv = m[1]; out.sv = m[2]; }
-  if(!out.pv){
-    m = T2.match(/(?:\bHV\b|H\.V\.|PRIMARY|แรงสูง)[^\d\n]{0,15}(\d{4,6})/);
-    if(m) out.pv = m[1];
-  }
-  if(!out.sv){
-    m = T2.match(/(?:\bLV\b|L\.V\.|SECONDARY|แรงต่ำ)[^\d\n]{0,15}(\d{3})(?=\s*(?:V\b|\/|-))/);
-    if(m) out.sv = m[1];
-  }
+  if(!out.pv){ const v = pick(wrap(PRI,VOLT), n=>n>=1000 && n<=100000); if(v) out.pv = v; }
+  if(!out.sv){ const v = pick(wrap(SEC,VOLT), n=>n>=100 && n<=1000); if(v) out.sv = v; }
+  if(!out.sv){ m = T2.match(/\bL\.?V\.?[^\d\n]{0,12}?(\d{3})(?=\s*(?:V\b|\/|-))/); if(m) out.sv = m[1]; }
   if(!out.pv){
     m = T2.match(/(\d{1,2}(?:[.,]\d+)?)\s*KV(?!\s*A)/);
     if(m) out.pv = String(Math.round(parseFloat(num(m[1]))*1000));
@@ -271,23 +292,44 @@ function parsePlate(raw){
     const re=/\b(\d{4,5})\s*V\b/g; let x;
     while((x=re.exec(T2))){ const n=+x[1]; if(n>=3000 && n<=70000){ out.pv=x[1]; break; } }
   }
-  if(!out.sv){
-    m = T2.match(/\b([234]\d\d)\s*V\b/);
-    if(m) out.sv = m[1];
+  if(!out.sv){ m = T2.match(/\b([234]\d\d)\s*V\b/); if(m) out.sv = m[1]; }
+
+  // Current
+  const pc = pick(wrap(PRI,AMP), n=>n>=0.05 && n<=3000);
+  const sc = pick(wrap(SEC,AMP), n=>n>=0.05 && n<=20000);
+  if(pc) out.pc = pc;
+  if(sc) out.sc = sc;
+  if(!out.pc || !out.sc){
+    // ไม่เจอคำนำหน้า: หาตัวเลขที่ตามด้วยหน่วย A ในบรรทัดเดียวกันเท่านั้น (ฝั่งแรงสูงมักน้อยกว่าฝั่งแรงต่ำ)
+    const amps=[]; const reA=/(\d+(?:[.,]\d+)?)[ \t]*A\b/g; let a;
+    while((a=reA.exec(T2))){ const n=parseFloat(num(a[1])); if(n>=0.05 && n<=20000 && !amps.includes(n)) amps.push(n); }
+    if(amps.length>=2){
+      if(!out.pc) out.pc = String(Math.min(...amps));
+      if(!out.sc) out.sc = String(Math.max(...amps));
+    }
   }
-  // Current: HV < LV for a step-down transformer, so smaller = HV, larger = LV
-  const amps=[]; const reA=/(\d+(?:[.,]\d+)?)\s*A\b/g; let a;
-  while((a=reA.exec(T))){ const n=parseFloat(num(a[1])); if(n>=0.1 && n<=5000 && !amps.includes(n)) amps.push(n); }
-  if(amps.length>=2){
-    const lo=Math.min(...amps), hi=Math.max(...amps);
-    out.pc = String(lo); out.sc = String(hi);
+
+  // Brand — บรรทัดชื่อบริษัท เช่น "C P N TRANSFORMER CO.,LTD."
+  m = T.match(/(?:MANUFACTURER|MANUFACTURED BY|MADE BY|BRAND|TRADEMARK|ผู้ผลิต|ยี่ห้อ)\s*[:.]?\s*([^\n]{2,40})/);
+  let brand = m ? m[1].trim() : "";
+  if(!brand){
+    m = T.match(/^[ ]*([^\n]{2,45}?)[ ]*(?:CO\.?[ ]*,?[ ]*LTD|COMPANY|LIMITED|CORP|บริษัท)/m);
+    if(m){
+      brand = m[1].replace(/\s*TRANSFORMERS?\s*$/,"").replace(/[ ,.\-]+$/,"").trim();
+      if(/^([A-Z] )+[A-Z]$/.test(brand)) brand = brand.replace(/ /g,"");   // "C P N" -> "CPN"
+    }
   }
+  if(!brand){
+    const b = BRANDS.find(x=>new RegExp("(^|[^A-Z])"+x.replace(/ /g,"\\s+")+"($|[^A-Z])").test(T));
+    if(b) brand = b;
+  }
+  if(brand) out.brand = brand;
   return out;
 }
 /*PARSE_END*/
 
 // ===== ถ่ายรูปป้าย -> Cloud Vision (ผ่าน Cloudflare Worker) -> เติมช่อง =====
-const WORKER_URL = "https://silent-rice-0398.prach-pompech15112.workers.dev";   // <-- แก้เป็นลิงก์ Worker ของคุณ
+const WORKER_URL = "https://silent-rice-0398.prach-pompech15112.workers.dev";   // ลิงก์ Worker ของคุณ
 const PLATE_KEYS = ["pea","brand","serial","kva","pv","sv","pc","sc","imp"];
 let scanBusy = false;
 function getPass(force){
