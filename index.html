@@ -287,7 +287,7 @@ function parsePlate(raw){
 /*PARSE_END*/
 
 // ===== ถ่ายรูปป้าย -> Cloud Vision (ผ่าน Cloudflare Worker) -> เติมช่อง =====
-const WORKER_URL = "silent-rice-0398.prach-pompech15112.workers.dev";   // <-- แก้เป็นลิงก์ Worker ของคุณ
+const WORKER_URL = "https://silent-rice-0398.prach-pompech15112.workers.dev";   // <-- แก้เป็นลิงก์ Worker ของคุณ
 const PLATE_KEYS = ["pea","brand","serial","kva","pv","sv","pc","sc","imp"];
 let scanBusy = false;
 function getPass(force){
