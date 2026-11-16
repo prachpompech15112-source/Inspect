@@ -374,7 +374,8 @@ async function scanPlate(file){
     if(res.status===401){ try{ localStorage.removeItem("trform_pass"); }catch(e){} throw new Error("รหัสผ่านไม่ถูกต้อง กดปุ่มอีกครั้งเพื่อใส่ใหม่"); }
     if(!res.ok) throw new Error("อ่านรูปไม่สำเร็จ ("+(data.error||res.status)+")"+(data.detail?" "+data.detail:""));
     $("raw").textContent = data.text || "(ไม่พบข้อความในรูป)";
-    const n = applyPlate(parsePlate(data.text||""));
+    const parsedData = (data.fields && Object.keys(data.fields).length) ? data.fields : parsePlate(data.text || "");
+    const n = applyPlate(parsedData);
     if(n) msg("เติมให้ "+n+" ช่อง — ช่องที่ว่างคืออ่านไม่ชัด กรอกเอง และตรวจทุกช่องกับป้ายจริง","ok");
     else msg("ไม่พบข้อมูลที่ใช้ได้ ลองถ่ายใหม่ให้ใกล้และตรงขึ้น หรือเปิดดูข้อความที่อ่านได้ด้านบน","err");
   }catch(e){
