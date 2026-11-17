@@ -37,12 +37,29 @@ input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix
 .btn{font:inherit;font-size:17px;min-height:50px;border-radius:12px;border:1px solid var(--line);background:var(--field);color:var(--ink);padding:0 16px;cursor:pointer}
 .btn.primary{flex:1;background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
 .btn:disabled{opacity:.6}
-.scan{background:var(--card);border:1px dashed var(--accent);border-radius:14px;padding:12px 14px;margin-bottom:16px}
+.scan{background:var(--card);border:1px dashed var(--accent);border-radius:14px;padding:12px 14px;margin-bottom:16px;position:relative;overflow:hidden}
 .scan p{margin:8px 0 0;font-size:13px;color:var(--muted)}
 .scan details{margin-top:8px;font-size:13px;color:var(--muted)}
 .scan pre{white-space:pre-wrap;word-break:break-word;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px;max-height:200px;overflow:auto;color:var(--ink)}
 .linkbtn{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;text-decoration:underline;padding:6px 0;cursor:pointer}
 input.filled{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,var(--field))}
+
+/* กล่องสถานะของการสแกนรูป (การ์ดบน) */
+#scanStatus{display:none;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border-radius:10px;font-size:14px;font-weight:500;background:color-mix(in srgb,var(--accent) 10%,var(--field));border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);color:var(--ink)}
+#scanStatus.show{display:flex}
+#scanStatus.ok{background:color-mix(in srgb,var(--ok) 12%,var(--field));border-color:color-mix(in srgb,var(--ok) 35%,transparent);color:var(--ok)}
+#scanStatus.err{background:color-mix(in srgb,var(--err) 12%,var(--field));border-color:color-mix(in srgb,var(--err) 35%,transparent);color:var(--err)}
+
+/* วงกลมหมุน (Spinner) */
+.spinner{width:18px;height:18px;border:2.5px solid color-mix(in srgb,var(--accent) 30%,transparent);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* เอฟเฟกต์แสงสแกนวิ่งผ่านปุ่มขณะกำลังทำงาน */
+#scanBtn.scanning{position:relative;overflow:hidden;opacity:.9}
+#scanBtn.scanning::after{content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:sweep 1.2s infinite}
+@keyframes sweep{100%{left:160%}}
+
+/* กล่องสถานะของการสร้างไฟล์ Word (ด้านล่าง) */
 #msg{min-height:22px;font-size:14px;margin:-6px 2px 12px}
 #msg.ok{color:var(--ok)}#msg.err{color:var(--err)}
 </style>
@@ -52,9 +69,10 @@ input.filled{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,v
   <h1>Test Report หม้อแปลง</h1>
   <p class="sub">กรอกข้อมูลแล้วกด “สร้างไฟล์ Word” ระบบจะใส่ลงในฟอร์ม PROVINCIAL ELECTRICITY AUTHORITY ให้</p>
 
-  <div class="scan">
+<div class="scan">
     <button type="button" class="btn primary" id="scanBtn" style="width:100%">📷 ถ่ายรูปเนมเพลท แล้วกรอกให้อัตโนมัติ</button>
     <input type="file" id="photo" accept="image/*" hidden>
+    <div id="scanStatus" role="status"></div>
     <p>ช่องที่เติมให้จะเป็นสีเขียว กรุณาเทียบกับป้ายจริงทุกช่องก่อนสร้างไฟล์</p>
     <details><summary>ข้อความที่อ่านได้จากรูป (ดูเมื่อผลผิด)</summary><pre id="raw"></pre></details>
     <button type="button" class="linkbtn" id="passBtn">เปลี่ยนรหัสผ่าน</button>
@@ -362,26 +380,66 @@ function applyPlate(d){
   save(); return n;
 }
 IDS.forEach(i=>$(i).addEventListener("input", ()=>$(i).classList.remove("filled")));
+
+// เพิ่มฟังก์ชันควบคุมสถานะและแอนิเมชันตรงนี้
+function setScanStatus(text, state){
+  const box = $("scanStatus");
+  const btn = $("scanBtn");
+  if(!text){
+    box.className = "";
+    box.innerHTML = "";
+    btn.classList.remove("scanning");
+    btn.textContent = "📷 ถ่ายรูปเนมเพลท แล้วกรอกให้อัตโนมัติ";
+    return;
+  }
+  box.className = "show " + (state || "");
+  if(state === "loading"){
+    box.innerHTML = '<span class="spinner"></span><span>' + text + '</span>';
+    btn.classList.add("scanning");
+    btn.textContent = "⏳ กำลังอ่านข้อมูลจากป้าย...";
+  } else {
+    const icon = state === "ok" ? "✅ " : state === "err" ? "⚠️ " : "";
+    box.textContent = icon + text;
+    btn.classList.remove("scanning");
+    btn.textContent = "📷 ถ่ายรูปเนมเพลท แล้วกรอกให้อัตโนมัติ";
+  }
+}
+
+// ฟังก์ชันเดิมที่ปรับให้เรียกใช้ setScanStatus แทน msg
 async function scanPlate(file){
   if(scanBusy) return;
-  if(WORKER_URL.indexOf("PUT_YOUR")===0){ msg("ยังไม่ได้ตั้งลิงก์ Worker ในไฟล์ (ดูคู่มือขั้นตอนที่ 4)","err"); return; }
-  const pass = getPass(false); if(!pass){ msg("ต้องใส่รหัสผ่านก่อน","err"); return; }
-  scanBusy = true; $("scanBtn").disabled = true; msg("กำลังอ่านป้าย…");
+  if(WORKER_URL.indexOf("PUT_YOUR")===0){ setScanStatus("ยังไม่ได้ตั้งลิงก์ Worker ในไฟล์ (ดูคู่มือขั้นตอนที่ 4)","err"); return; }
+  const pass = getPass(false); if(!pass){ setScanStatus("ต้องใส่รหัสผ่านก่อน","err"); return; }
+  
+  scanBusy = true;
+  $("scanBtn").disabled = true;
+  setScanStatus("กำลังย่อรูปและส่งให้ AI อ่านเนมเพลท...", "loading");
+
   try{
     const b64 = await shrink(file, 1800);
+    setScanStatus("กำลังวิเคราะห์ตัวเลขและยี่ห้อบนป้าย...", "loading");
+    
     const res = await fetch(WORKER_URL, {method:"POST", headers:{"Content-Type":"application/json","X-Passcode":pass}, body:JSON.stringify({image:b64})});
     const data = await res.json().catch(()=>({}));
+    
     if(res.status===401){ try{ localStorage.removeItem("trform_pass"); }catch(e){} throw new Error("รหัสผ่านไม่ถูกต้อง กดปุ่มอีกครั้งเพื่อใส่ใหม่"); }
     if(!res.ok) throw new Error("อ่านรูปไม่สำเร็จ ("+(data.error||res.status)+")"+(data.detail?" "+data.detail:""));
+    
     $("raw").textContent = data.text || "(ไม่พบข้อความในรูป)";
     const parsedData = (data.fields && Object.keys(data.fields).length) ? data.fields : parsePlate(data.text || "");
     const n = applyPlate(parsedData);
-    if(n) msg("เติมให้ "+n+" ช่อง — ช่องที่ว่างคืออ่านไม่ชัด กรอกเอง และตรวจทุกช่องกับป้ายจริง","ok");
-    else msg("ไม่พบข้อมูลที่ใช้ได้ ลองถ่ายใหม่ให้ใกล้และตรงขึ้น หรือเปิดดูข้อความที่อ่านได้ด้านบน","err");
+    
+    if(n) setScanStatus("เติมข้อมูลให้ "+n+" ช่อง — กรุณาตรวจเทียบกับป้ายจริงทุกช่อง", "ok");
+    else setScanStatus("ไม่พบข้อมูลที่ใช้ได้ ลองถ่ายใหม่ให้ใกล้และตรงขึ้น", "err");
   }catch(e){
-    msg((e && e.message) || "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง","err");
-  }finally{ scanBusy=false; $("scanBtn").disabled=false; $("photo").value=""; }
+    setScanStatus((e && e.message) || "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง", "err");
+  }finally{
+    scanBusy = false;
+    $("scanBtn").disabled = false;
+    $("photo").value = "";
+  }
 }
+
 $("scanBtn").addEventListener("click", ()=>$("photo").click());
 $("photo").addEventListener("change", e=>{ const f=e.target.files&&e.target.files[0]; if(f) scanPlate(f); });
 $("passBtn").addEventListener("click", ()=>{ getPass(true); });
