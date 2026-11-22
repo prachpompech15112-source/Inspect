@@ -63,12 +63,13 @@ input.filled{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 10%,v
 #msg{min-height:22px;font-size:14px;margin:-6px 2px 12px}
 #msg.ok{color:var(--ok)}#msg.err{color:var(--err)}
 
-  /*ดรอปดาวน์ TAP RATIO */
+/*ดรอปดาวน์ TAP RATIO */
 select{width:100%;font:inherit;font-size:17px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--field);color:var(--ink);min-height:48px;outline:none}
 select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
 .ratio-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .ratio-bar select{width:120px;flex-shrink:0;font-weight:600}
-.cal-box{font-size:17px;color:var(--ink)}
+.pvsv-badge{font-size:18px;font-weight:700;color:var(--accent)}
+.cal-box{flex:1;font-size:17px;color:var(--ink);padding:8px 12px;border-radius:10px;background:color-mix(in srgb,var(--accent) 8%,var(--field));border:1px solid color-mix(in srgb,var(--accent) 25%,transparent)}
 .cal-box strong{font-size:19px;color:var(--accent)}
 .cal-box small{color:var(--muted);font-size:14px}
 .ratio-row{display:flex;align-items:center;gap:12px;margin-bottom:10px}
@@ -103,7 +104,8 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,v
       <label><span>แรงต่ำ / Secondary Voltage (V)</span><input type="text" id="sv" inputmode="decimal" autocomplete="off" placeholder="เช่น 400"></label>
       <label><span>กระแสแรงสูง / Primary Current (A)</span><input type="text" id="pc" inputmode="decimal" autocomplete="off"></label>
       <label><span>กระแสแรงต่ำ / Secondary Current (A)</span><input type="text" id="sc" inputmode="decimal" autocomplete="off"></label>
-      <label class="full"><span>Impedance (%)</span><input type="text" id="imp" inputmode="decimal" autocomplete="off" placeholder="เช่น 4.5"></label>
+      <label><span>Impedance (%)</span><input type="text" id="imp" inputmode="decimal" autocomplete="off" placeholder="เช่น 4.5"></label>
+      <label><span>Vector Group</span><input type="text" id="vector" autocomplete="off" autocapitalize="characters" placeholder="เช่น Dyn11"></label>
     </div>
   </section>
 
@@ -117,10 +119,10 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,v
       <label class="full"><span>Secondary – Earth (MΩ)</span><input type="text" id="se" inputmode="text" autocomplete="off"></label>
     </div>
   </section>
-
   <div id="msg" role="status"></div>
-  <section>
-    <h2>VOLTAGE RATIO <small id="vrHeader"></small></h2>
+  
+<section>
+    <h2>VOLTAGE RATIO</h2>
     <div class="ratio-bar">
       <select id="tap" aria-label="Tap">
         <option value="1">TAP 1</option>
@@ -129,8 +131,12 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,v
         <option value="4">TAP 4</option>
         <option value="5">TAP 5</option>
       </select>
+      <div class="pvsv-badge" id="vrHeader">—</div>
+    </div>
+    <div class="ratio-row">
+      <span>Cal.</span>
       <div class="cal-box">
-        Cal. = <strong id="calVal">...</strong> <small>±0.5%</small>
+        <strong id="calVal">...</strong> <small>±0.5%</small>
         <div id="calNote" style="font-size:12px;color:var(--muted)"></div>
       </div>
     </div>
@@ -175,94 +181,47 @@ const MAP = {
   tv:[11,0], temp:[11,1], ps:[11,2], pe:[11,3], se:[11,4],
   cal:[14,2], rab:[15,2], rbc:[16,2], rca:[17,2]
 };
-function kids(el, name){
-  const out=[]; for(let i=0;i<el.childNodes.length;i++){const n=el.childNodes[i]; if(n.localName===name && n.namespaceURI===W_NS) out.push(n);} return out;
-}
-function setCellText(doc, tc, text, append){
-  const p = kids(tc,"p")[0];
-  const runs = kids(p,"r");
-  const existing = runs.length ? runs[runs.length-1] : null;
-  if(existing && existing.getElementsByTagNameNS(W_NS,"t").length){
-    const t = existing.getElementsByTagNameNS(W_NS,"t")[0];
-    t.setAttributeNS(XML_NS,"xml:space","preserve");
-    t.textContent = append ? (t.textContent + " " + text) : text;
-    return;
-  }
-  const r = doc.createElementNS(W_NS,"w:r");
-  const pPr = kids(p,"pPr")[0];
-  const pRpr = pPr ? kids(pPr,"rPr")[0] : null;
-  if(pRpr){
-    const rPr = doc.createElementNS(W_NS,"w:rPr");
-    for(let i=0;i<pRpr.childNodes.length;i++) rPr.appendChild(pRpr.childNodes[i].cloneNode(true));
-    r.appendChild(rPr);
-  }
-  const t = doc.createElementNS(W_NS,"w:t");
-  t.setAttributeNS(XML_NS,"xml:space","preserve");
-  t.appendChild(doc.createTextNode(text));
-  r.appendChild(t);
-  p.appendChild(r);
-}
-async function fillDocx(JSZipLib, b64, values, Parser, Serializer){
-  const zip = await JSZipLib.loadAsync(b64, {base64:true});
-  const xml = await zip.file("word/document.xml").async("string");
-  const doc = new Parser().parseFromString(xml, "application/xml");
-  const rows = doc.getElementsByTagNameNS(W_NS,"tr");
-  for(const key in MAP){
-    const v = (values[key]||"").trim();
-    if(!v) continue;
-    const [r,c] = MAP[key];
-    const tc = kids(rows[r],"tc")[c];
-    setCellText(doc, tc, v, key==="pea");
-  }
-  let out = new Serializer().serializeToString(doc);
-  out = out.replace(/^<\?xml[^>]*\?>\s*/,"");
-  zip.file("word/document.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + out);
-  return zip;
-}
-/*FILL_END*/
-
-// ===== UI =====
+const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const $ = id => document.getElementById(id);
-const IDS = ["pea","brand","serial","kva","pv","sv","pc","sc","imp","tv","temp","ps","pe","se","tap","rab","rbc","rca"];
+const IDS = ["pea","brand","serial","kva","pv","sv","pc","sc","imp","vector","tv","temp","ps","pe","se","tap","rab","rbc","rca"];
 let phase = "";
-let vectorGroup = "";
 let lastFile = null;
-function msg(t, cls){ const m=$("msg"); m.textContent=t||""; m.className=cls||""; }
+
 function setPhase(v){
   phase = v;
-  document.querySelectorAll("#phaseSeg button").forEach(b=>b.classList.toggle("on", b.dataset.v===v));
+  document.querySelectorAll("#phase button").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.v===v)));
 }
 
 function isDyn11(){
-  const txt = (vectorGroup + " " + ($("raw") ? $("raw").textContent : "")).toUpperCase();
+  const txt = (($("vector") ? $("vector").value : "") + " " + ($("raw") ? $("raw").textContent : "")).toUpperCase();
   return /D\s*Y\s*N\s*11/.test(txt);
 }
 
 function updateRatio(){
-  const pvStr = ($("pv").value || "").trim();
-  const svStr = ($("sv").value || "").trim();
+  const pvStr = ($("pv") ? $("pv").value : "").trim();
+  const svStr = ($("sv") ? $("sv").value : "").trim();
   
-  $("vrHeader").textContent = (pvStr && svStr) ? `[${pvStr}-${svStr}]` : "";
+  if($("vrHeader")) $("vrHeader").textContent = (pvStr && svStr) ? `${pvStr}-${svStr}` : "—";
 
   const pv = parseFloat(pvStr.replace(/,/g, ""));
   const sv = parseFloat(svStr.replace(/,/g, ""));
   if(!pv || !sv){
-    $("calVal").textContent = "...";
-    $("calNote").textContent = "";
+    if($("calVal")) $("calVal").textContent = "...";
+    if($("calNote")) $("calNote").textContent = "";
     return "";
   }
 
   const dyn = isDyn11();
   const ratio = dyn ? (pv / sv) * 1.732 : (pv / sv);
   const formatted = ratio.toFixed(3);
-  $("calVal").textContent = formatted;
-  $("calNote").textContent = dyn ? "สูตร Dyn11: (PV ÷ SV) × 1.732" : "สูตรปกติ: PV ÷ SV";
+  if($("calVal")) $("calVal").textContent = formatted;
+  if($("calNote")) $("calNote").textContent = dyn ? "สูตร Dyn11: (PV ÷ SV) × 1.732" : "สูตรปกติ: PV ÷ SV";
   return formatted;
 }
 
 function collect(){
-  const o = { phase, vectorGroup, cal: updateRatio() };
-  IDS.forEach(i => o[i] = $(i).value);
+  const o = { phase, cal: updateRatio() };
+  IDS.forEach(i => { if($(i)) o[i] = $(i).value; });
   return o;
 }
 
@@ -273,22 +232,21 @@ function load(){
     const d = JSON.parse(localStorage.getItem("trform_draft")||"null");
     if(d){
       IDS.forEach(i=>{ if(typeof d[i]==="string" && $(i)) $(i).value=d[i]; });
-      if(!$("tap").value) $("tap").value = "3";
+      if($("tap") && !$("tap").value) $("tap").value = "3";
       setPhase(d.phase||"");
-      vectorGroup = d.vectorGroup || "";
     }
   }catch(e){}
   updateRatio();
 }
 
-function msg(t, cls){ const m=$("msg"); m.textContent=t||""; m.className=cls||""; }
+function msg(t, cls){ const m=$("msg"); if(m){ m.textContent=t||""; m.className=cls||""; } }
 
-document.querySelectorAll("#phaseSeg button").forEach(b=>b.addEventListener("click",()=>{
+document.querySelectorAll("#phase button").forEach(b=>b.addEventListener("click",()=>{
   setPhase(phase===b.dataset.v ? "" : b.dataset.v); save();
 }));
-IDS.forEach(i=>$(i).addEventListener("input",save));
-["pv","sv"].forEach(id => $(id).addEventListener("input", ()=>{ updateRatio(); save(); }));
-$("tap").addEventListener("change", save);
+IDS.forEach(i=>{ if($(i)) $(i).addEventListener("input",save); });
+["pv","sv","vector"].forEach(id=>{ if($(id)) $(id).addEventListener("input", ()=>{ updateRatio(); save(); }); });
+if($("tap")) $("tap").addEventListener("change", save);
 
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
@@ -366,10 +324,9 @@ $("share").addEventListener("click", async ()=>{
 
 $("clear").addEventListener("click",()=>{
   if(!confirm("ล้างข้อมูลทั้งหมดในฟอร์ม?")) return;
-  IDS.forEach(i=>$(i).value="");
-  $("tv").value="1000";
-  $("tap").value="3";
-  vectorGroup = "";
+  IDS.forEach(i=>{ if($(i)) $(i).value=""; });
+  if($("tv")) $("tv").value="1000";
+  if($("tap")) $("tap").value="3";
   setPhase("");
   updateRatio();
   setScanStatus("");
@@ -377,8 +334,8 @@ $("clear").addEventListener("click",()=>{
   window.scrollTo({top:0,behavior:"smooth"});
 });
 
-const WORKER_URL = "https://silent-rice-0398.prach-pompech15112.workers.dev"; // <-- อย่าลืมใส่ลิงก์ Worker เดิมของคุณตรงนี้นะครับ!
-const PLATE_KEYS = ["pea","brand","serial","kva","pv","sv","phase","pc","sc","imp"];
+const WORKER_URL = "https://silent-rice-0398.prach-pompech15112.workers.dev/"; // <-- อย่าลืมใส่ลิงก์ Worker เดิมของคุณตรงนี้นะครับ!
+const PLATE_KEYS = ["pea","brand","serial","kva","pv","sv","phase","pc","sc","imp","vector"];
 let scanBusy = false;
 
 function getPass(forcePrompt){
@@ -403,7 +360,7 @@ function shrink(file, maxSide){
       const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
       const c = document.createElement("canvas"); c.width = w; c.height = h;
       c.getContext("2d").drawImage(img, 0, 0, w, h);
-      resolve(c.toDataURL("image/jpeg", 0.86.split(",")[1]);
+      resolve(c.toDataURL("image/jpeg", 0.86).split(",")[1]);
     };
     img.onerror = ()=>{ URL.revokeObjectURL(u); reject(new Error("อ่านไฟล์รูปไม่ได้")); };
     img.src = u;
@@ -437,6 +394,9 @@ function parsePlate(raw){
   const imp = t.match(/(?:IMPEDANCE|%Z|Z\s*%|UZ)\s*[:=\-]?\s*(\d+(?:[.,]\d+)?)\s*%?/i)
            || t.match(/(\d+(?:[.,]\d+)?)\s*%\s*(?:IMP|Z\b)/i);
   if(imp) out.imp = imp[1].replace(",",".");
+
+  const vec = t.match(/\b([DYZ][ynz]\d{1,2})\b/);
+  if(vec) out.vector = vec[1];
 
   let hv = t.match(/(?:HV|H\.V\.|PRIMARY|PRI\.?|แรงสูง)\s*[:=\-]?\s*(\d{1,3}(?:,\d{3})+|\d{4,6})\s*V?\b/i);
   let lv = t.match(/(?:LV|L\.V\.|SECONDARY|SEC\.?|แรงต่ำ)\s*[:=\-]?\s*(\d{3,4}(?:\/\d{3,4})?)\s*V?\b/i);
@@ -480,19 +440,19 @@ function parsePlate(raw){
 function applyPlate(d){
   let n = 0;
   PLATE_KEYS.forEach(k=>{
-    const v = d[k]; if(!v) return;
+    const v = d[k]; if(!v || !$(k)) return;
     const el = $(k); el.value = v; el.classList.add("filled"); n++;
   });
   if(d.phase==="1" || d.phase==="3"){ setPhase(d.phase); n++; }
-  if(d.vector) vectorGroup = d.vector;
   updateRatio();
   save(); return n;
 }
-IDS.forEach(i=>$(i).addEventListener("input", ()=>$(i).classList.remove("filled")));
+IDS.forEach(i=>{ if($(i)) $(i).addEventListener("input", ()=>$(i).classList.remove("filled")); });
 
 function setScanStatus(text, state){
   const box = $("scanStatus");
   const btn = $("scanBtn");
+  if(!box || !btn) return;
   if(!text){
     box.className = "";
     box.innerHTML = "";
