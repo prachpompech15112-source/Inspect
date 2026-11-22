@@ -296,10 +296,10 @@ async function buildDocx(data){
 }
 
 function fileName(data){
-  const p = (data.pea||"").trim().replace(/[\\/:*?"<>|]/g,"-");
-  return (p ? "ใบงาน_"+p : "แบบฟอร์มผลทดสอบหม้อแปลง") + ".docx";
+  const clean = s => (s||"").trim().replace(/[\\/:*?"<>|]/g,"-").replace(/\s+/g,"_");
+  const parts = [clean(data.brand), clean(data.serial)].filter(Boolean);
+  return (parts.length ? parts.join("_") : "แบบฟอร์มผลทดสอบหม้อแปลง") + ".docx";
 }
-
 $("make").addEventListener("click", async ()=>{
   const btn = $("make"); btn.disabled = true; msg("กำลังสร้างไฟล์...");
   try{
@@ -319,7 +319,7 @@ $("make").addEventListener("click", async ()=>{
 
 $("share").addEventListener("click", async ()=>{
   if(!lastFile) return;
-  try{ await navigator.share({files:[lastFile], title:lastFile.name}); }catch(e){}
+  try{ await navigator.share({files:[lastFile]}); }catch(e){}
 });
 
 $("clear").addEventListener("click",()=>{
