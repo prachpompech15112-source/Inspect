@@ -511,38 +511,66 @@ $("scanBtn").addEventListener("click", ()=>$("photo").click());
 $("photo").addEventListener("change", e=>{ const f=e.target.files&&e.target.files[0]; if(f) scanPlate(f); });
 $("passBtn").addEventListener("click", ()=>{ getPass(true); });
   
-// ปุ่มลับ: กดค้างที่หัวข้อ VOLTAGE RATIO 2 วินาที เพื่อสุ่มกรอกค่า ±0.1%
+// ปุ่มลับ: กดค้างที่หัวข้อ VOLTAGE RATIO 1 วินาที ให้เลขวิ่งขึ้นทีละช่อง
 (function(){
   const title = $("vrTitle");
   if(!title) return;
-  let timer = null;
+  let holdTimer = null;
+  let isRunning = false;
 
-  function fillSecretRatio(){
+  function animateField(id, finalVal, duration){
+    return new Promise(resolve => {
+      const el = $(id);
+      if(!el){ resolve(); return; }
+      el.classList.remove("filled");
+      const start = performance.now();
+
+      function tick(now){
+        const progress = Math.min(1, (now - start) / duration);
+        if(progress < 1){
+          // สุ่มตัวเลขวิ่งขึ้น-ลงรอบค่าจริงระหว่างกำลังวัด
+          const jitter = finalVal * (1 + (Math.random() * 0.04 - 0.02));
+          el.value = jitter.toFixed(2);
+          requestAnimationFrame(tick);
+        } else {
+          el.value = finalVal.toFixed(2);
+          el.classList.add("filled");
+          if(navigator.vibrate) navigator.vibrate(25);
+          resolve();
+        }
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  async function fillSecretRatio(){
+    if(isRunning) return;
     const cal = parseFloat(updateRatio());
     if(!cal || isNaN(cal)) return; // ถ้ายังไม่มีค่า Cal. จะไม่ทำงาน
 
-    ["rab", "rbc", "rca"].forEach(id => {
-      const el = $(id);
-      if(!el) return;
-      // สุ่มค่าความคลาดเคลื่อนระหว่าง -0.001 (-0.1%) ถึง +0.001 (+0.1%)
-      const factor = 1 + ((Math.random() * 2 - 1) * 0.001);
-      el.value = (cal * factor).toFixed(2);
-      el.classList.add("filled");
-    });
+    isRunning = true;
+    if(navigator.vibrate) navigator.vibrate(35);
 
-    if(navigator.vibrate) navigator.vibrate(40); // สั่นเบาๆ บนมือถือเมื่อทำงานสำเร็จ
+    for(const id of ["rab", "rbc", "rca"]){
+      // สุ่มค่าสุดท้ายให้คลาดเคลื่อนจาก Cal. ไม่เกิน ±0.1%
+      const factor = 1 + ((Math.random() * 2 - 1) * 0.001);
+      const target = cal * factor;
+      await animateField(id, target, 320); // วิ่งตัวเลขช่องละ 0.32 วินาที แล้วหยุดทีละช่อง
+    }
+
     save();
+    isRunning = false;
   }
 
   function startHold(e){
     if(e.type === "mousedown" && e.button !== 0) return;
-    clearTimeout(timer);
-    timer = setTimeout(fillSecretRatio, 2000);
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(fillSecretRatio, 1000); // กดค้าง 1 วินาที
   }
 
   function cancelHold(){
-    clearTimeout(timer);
-    timer = null;
+    clearTimeout(holdTimer);
+    holdTimer = null;
   }
 
   title.addEventListener("touchstart", startHold, {passive: true});
