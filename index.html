@@ -79,11 +79,11 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,v
 </head>
 <body>
 <main>
-  <h1>Test Report หม้อแปลง</h1>
-  <p class="sub">กรอกข้อมูลแล้วกด “สร้างไฟล์ Word” ระบบจะใส่ลงในฟอร์ม PROVINCIAL ELECTRICITY AUTHORITY ให้</p>
+  <h1>INSPECTION TRANSFORMER FORM VT.1.2</h1>
+  <p class="sub">กรอกข้อมูลแล้วกด “สร้างไฟล์ Word” ระบบจะใส่ลงในฟอร์ม TEST REPORT อัตโนมัติ</p>
 
 <div class="scan">
-    <button type="button" class="btn primary" id="scanBtn" style="width:100%">📷 ถ่ายรูปเนมเพลท แล้วกรอกให้อัตโนมัติ</button>
+    <button type="button" class="btn primary" id="scanBtn" style="width:100%">📷 ถ่ายรูปเนมเพลท เพื่อกรอกให้อัตโนมัติ</button>
     <input type="file" id="photo" accept="image/*" hidden>
     <div id="scanStatus" role="status"></div>
     <p>ช่องที่เติมให้จะเป็นสีเขียว กรุณาเทียบกับป้ายจริงทุกช่องก่อนสร้างไฟล์</p>
@@ -100,8 +100,8 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,v
       <label><span>kVA</span><input type="text" id="kva" inputmode="decimal" autocomplete="off" placeholder="เช่น 100"></label>
       <div class="full" style="margin-bottom:12px"><span style="display:block;font-size:14px;color:var(--muted);margin-bottom:4px">Phase</span>
         <div class="seg" id="phase"><button type="button" data-v="1" aria-pressed="false">1 เฟส</button><button type="button" data-v="3" aria-pressed="false">3 เฟส</button></div></div>
-      <label><span>แรงสูง / Primary Voltage (V)</span><input type="text" id="pv" inputmode="decimal" autocomplete="off" placeholder="เช่น 22000"></label>
-      <label><span>แรงต่ำ / Secondary Voltage (V)</span><input type="text" id="sv" inputmode="decimal" autocomplete="off" placeholder="เช่น 400"></label>
+      <label><span>แรงสูง / Pri. Voltage (V)</span><input type="text" id="pv" inputmode="decimal" autocomplete="off" placeholder="เช่น 22000"></label>
+      <label><span>แรงต่ำ / Sec. Voltage (V)</span><input type="text" id="sv" inputmode="decimal" autocomplete="off" placeholder="เช่น 400"></label>
       <label><span>กระแสแรงสูง / Primary Current (A)</span><input type="text" id="pc" inputmode="decimal" autocomplete="off"></label>
       <label><span>กระแสแรงต่ำ / Secondary Current (A)</span><input type="text" id="sc" inputmode="decimal" autocomplete="off"></label>
       <label><span>Impedance (%)</span><input type="text" id="imp" inputmode="decimal" autocomplete="off" placeholder="เช่น 4.5"></label>
