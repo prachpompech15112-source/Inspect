@@ -403,7 +403,7 @@ function shrink(file, maxSide){
       const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
       const c = document.createElement("canvas"); c.width = w; c.height = h;
       c.getContext("2d").drawImage(img, 0, 0, w, h);
-      resolve(c.toDataURL("image/jpeg", 0.86));
+      resolve(c.toDataURL("image/jpeg", 0.86.split(",")[1]);
     };
     img.onerror = ()=>{ URL.revokeObjectURL(u); reject(new Error("อ่านไฟล์รูปไม่ได้")); };
     img.src = u;
