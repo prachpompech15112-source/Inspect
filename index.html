@@ -121,7 +121,7 @@ select:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,v
   </section>
   
 <section>
-    <h2>VOLTAGE RATIO</h2>
+    <h2 id="vrTitle" style="user-select:none;-webkit-user-select:none;cursor:pointer">VOLTAGE RATIO</h2>
     <div class="ratio-bar">
       <select id="tap" aria-label="Tap">
         <option value="1">TAP 1</option>
@@ -510,6 +510,49 @@ async function scanPlate(file){
 $("scanBtn").addEventListener("click", ()=>$("photo").click());
 $("photo").addEventListener("change", e=>{ const f=e.target.files&&e.target.files[0]; if(f) scanPlate(f); });
 $("passBtn").addEventListener("click", ()=>{ getPass(true); });
+  
+// ปุ่มลับ: กดค้างที่หัวข้อ VOLTAGE RATIO 2 วินาที เพื่อสุ่มกรอกค่า ±0.1%
+(function(){
+  const title = $("vrTitle");
+  if(!title) return;
+  let timer = null;
+
+  function fillSecretRatio(){
+    const cal = parseFloat(updateRatio());
+    if(!cal || isNaN(cal)) return; // ถ้ายังไม่มีค่า Cal. จะไม่ทำงาน
+
+    ["rab", "rbc", "rca"].forEach(id => {
+      const el = $(id);
+      if(!el) return;
+      // สุ่มค่าความคลาดเคลื่อนระหว่าง -0.001 (-0.1%) ถึง +0.001 (+0.1%)
+      const factor = 1 + ((Math.random() * 2 - 1) * 0.001);
+      el.value = (cal * factor).toFixed(2);
+      el.classList.add("filled");
+    });
+
+    if(navigator.vibrate) navigator.vibrate(40); // สั่นเบาๆ บนมือถือเมื่อทำงานสำเร็จ
+    save();
+  }
+
+  function startHold(e){
+    if(e.type === "mousedown" && e.button !== 0) return;
+    clearTimeout(timer);
+    timer = setTimeout(fillSecretRatio, 2000);
+  }
+
+  function cancelHold(){
+    clearTimeout(timer);
+    timer = null;
+  }
+
+  title.addEventListener("touchstart", startHold, {passive: true});
+  title.addEventListener("touchend", cancelHold);
+  title.addEventListener("touchmove", cancelHold);
+  title.addEventListener("touchcancel", cancelHold);
+  title.addEventListener("mousedown", startHold);
+  title.addEventListener("mouseup", cancelHold);
+  title.addEventListener("mouseleave", cancelHold);
+})();
 load();
 </script>
 </body>
