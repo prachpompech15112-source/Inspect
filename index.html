@@ -318,6 +318,27 @@ function checkDyn11InDoc(doc, tbl){
   }) || cells.find(tc => /\bDyn11\b/i.test(tc.textContent || ""));
   if(!targetCell) return;
 
+  const runs = Array.from(targetCell.getElementsByTagNameNS(W, "r"));
+  const dynRun = runs.find(r => /\bDyn11\b/i.test(r.textContent || ""));
+  if(!dynRun || !dynRun.parentNode) return;
+
+  // ดึงระยะห่างตัวอักษรของ run ที่อยู่หน้า Dyn11 ให้ขยับไปทับกล่องสี่เหลี่ยม
+  const idx = runs.indexOf(dynRun);
+  const prevRun = idx > 0 ? runs[idx - 1] : null;
+  if(prevRun){
+    let pRPr = prevRun.getElementsByTagNameNS(W, "rPr")[0];
+    if(!pRPr){
+      pRPr = doc.createElementNS(W, "w:rPr");
+      prevRun.insertBefore(pRPr, prevRun.firstChild);
+    }
+    let sp = pRPr.getElementsByTagNameNS(W, "spacing")[0];
+    if(!sp){
+      sp = doc.createElementNS(W, "w:spacing");
+      pRPr.appendChild(sp);
+    }
+    sp.setAttribute("w:val", "-120");
+  }
+
   const markRun = doc.createElementNS(W, "w:r");
   const rPr = doc.createElementNS(W, "w:rPr");
   const rFonts = doc.createElementNS(W, "w:rFonts");
@@ -330,6 +351,7 @@ function checkDyn11InDoc(doc, tbl){
   const sz = doc.createElementNS(W, "w:sz"); sz.setAttribute("w:val", "22");
   const szCs = doc.createElementNS(W, "w:szCs"); szCs.setAttribute("w:val", "22");
   const color = doc.createElementNS(W, "w:color"); color.setAttribute("w:val", "0000FF");
+  const spacing = doc.createElementNS(W, "w:spacing"); spacing.setAttribute("w:val", "-120");
 
   rPr.appendChild(rFonts);
   rPr.appendChild(b);
@@ -337,6 +359,7 @@ function checkDyn11InDoc(doc, tbl){
   rPr.appendChild(sz);
   rPr.appendChild(szCs);
   rPr.appendChild(color);
+  rPr.appendChild(spacing);
 
   const t = doc.createElementNS(W, "w:t");
   t.setAttribute("xml:space", "preserve");
@@ -345,16 +368,9 @@ function checkDyn11InDoc(doc, tbl){
   markRun.appendChild(rPr);
   markRun.appendChild(t);
 
-  // ค้นหา run ที่มีคำว่า Dyn11 แล้วแทรกเครื่องหมาย ✓ ไว้ด้านหน้า
-  const runs = Array.from(targetCell.getElementsByTagNameNS(W, "r"));
-  const dynRun = runs.find(r => /\bDyn11\b/i.test(r.textContent || ""));
-  if(dynRun && dynRun.parentNode){
-    dynRun.parentNode.insertBefore(markRun, dynRun);
-  } else {
-    const p = targetCell.getElementsByTagNameNS(W, "p")[0];
-    if(p) p.appendChild(markRun);
-  }
+  dynRun.parentNode.insertBefore(markRun, dynRun);
 }
+
 async function buildDocx(data){
   const bin = atob(TEMPLATE_B64);
   const bytes = new Uint8Array(bin.length);
