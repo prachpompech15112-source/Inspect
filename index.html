@@ -354,23 +354,39 @@ $("make").addEventListener("click", async ()=>{
   }finally{ btn.disabled = false; }
 });
 
-$("share").addEventListener("click", async ()=>{
-  if(!lastFile) return;
-  try{ await navigator.share({files:[lastFile]}); }catch(e){}
-});
-
-$("clear").addEventListener("click",()=>{
-  if(!confirm("ล้างข้อมูลทั้งหมดในฟอร์ม?")) return;
-  IDS.forEach(i=>{ if($(i)) $(i).value=""; });
-  if($("tv")) $("tv").value="1000";
-  if($("tap")) $("tap").value="3";
+// ฟังก์ชันกลางสำหรับล้างข้อมูลทั้งหมดในฟอร์ม
+function resetForm(){
+  IDS.forEach(i=>{
+    if($(i)){
+      $(i).value = "";
+      $(i).classList.remove("filled");
+    }
+  });
+  if($("tv")) $("tv").value = "1000";
+  if($("tap")) $("tap").value = "3";
+  if($("raw")) $("raw").textContent = "";
+  lastFile = null;
+  $("share").hidden = true;
   setPhase("");
   updateRatio();
   setScanStatus("");
-  save(); msg("");
-  window.scrollTo({top:0,behavior:"smooth"});
+  save();
+  msg("");
+  window.scrollTo({top: 0, behavior: "smooth"});
+}
+
+$("share").addEventListener("click", async ()=>{
+  if(!lastFile) return;
+  try{
+    await navigator.share({files:[lastFile], title:lastFile.name});
+    resetForm(); // ล้างข้อมูลทั้งหมดทันทีหลังจากส่งไฟล์เสร็จ
+  }catch(e){}
 });
 
+$("clear").addEventListener("click", ()=>{
+  if(!confirm("ล้างข้อมูลทั้งหมดในฟอร์ม?")) return;
+  resetForm();
+});
 const WORKER_URL = "https://silent-rice-0398.prach-pompech15112.workers.dev/"; // <-- อย่าลืมใส่ลิงก์ Worker เดิมของคุณตรงนี้นะครับ!
 const PLATE_KEYS = ["pea","brand","serial","kva","pv","sv","phase","pc","sc","imp","vector"];
 let scanBusy = false;
