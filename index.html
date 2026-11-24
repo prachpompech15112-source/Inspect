@@ -179,7 +179,7 @@ const MAP = {
   phase:[6,1], pc:[6,3], sc:[6,5],
   imp:[7,3],
   tv:[11,0], temp:[11,1], ps:[11,2], pe:[11,3], se:[11,4],
-  cal:[22,5], rab:[23,5], rbc:[24,5], rca:[25,5]
+  cal:[23,5], rab:[24,5], rbc:[25,5], rca:[26,5]
 };
 const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const $ = id => document.getElementById(id);
@@ -251,7 +251,6 @@ if($("tap")) $("tap").addEventListener("change", save);
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 function fillCell(cell, text){
-  // เก็บการจัดกึ่งกลาง/ชิดซ้ายเดิมของย่อหน้า (jc) ไว้ถ้ามี
   const oldP = cell.getElementsByTagNameNS(W, "p")[0];
   let oldJc = null;
   if(oldP){
@@ -262,14 +261,12 @@ function fillCell(cell, text){
     }
   }
 
-  // ลบย่อหน้าเก่าทั้งหมดในเซลล์ออก เพื่อล้างฟอนต์ Angsana New ขนาด 16 ที่ค้างอยู่
   const ps = Array.from(cell.getElementsByTagNameNS(W, "p"));
   ps.forEach(p => p.remove());
 
   const doc = cell.ownerDocument;
   const p = doc.createElementNS(W, "w:p");
 
-  // ตั้งค่าคุณสมบัติระดับย่อหน้า (pPr) ให้เป็น TH SarabunPSK ขนาด 11 (val="22") ตัวหนา
   const pPr = doc.createElementNS(W, "w:pPr");
   if(oldJc){
     const jc = doc.createElementNS(W, "w:jc");
@@ -285,11 +282,11 @@ function fillCell(cell, text){
   const pBCs = doc.createElementNS(W, "w:bCs");
   const pSz = doc.createElementNS(W, "w:sz"); pSz.setAttribute("w:val", "22");
   const pSzCs = doc.createElementNS(W, "w:szCs"); pSzCs.setAttribute("w:val", "22");
-  pRPr.appendChild(pFonts); pRPr.appendChild(pB); pRPr.appendChild(pBCs); pRPr.appendChild(pSz); pRPr.appendChild(pSzCs);
+  const pColor = doc.createElementNS(W, "w:color"); pColor.setAttribute("w:val", "0000FF");
+  pRPr.appendChild(pFonts); pRPr.appendChild(pB); pRPr.appendChild(pBCs); pRPr.appendChild(pSz); pRPr.appendChild(pSzCs); pRPr.appendChild(pColor);
   pPr.appendChild(pRPr);
   p.appendChild(pPr);
 
-  // สร้างข้อความใหม่ (w:r) ด้วย TH SarabunPSK ขนาด 11 (val="22") ตัวหนา
   const r = doc.createElementNS(W, "w:r");
   const rPr = doc.createElementNS(W, "w:rPr");
   const rFonts = doc.createElementNS(W, "w:rFonts");
@@ -300,7 +297,8 @@ function fillCell(cell, text){
   const bCs = doc.createElementNS(W, "w:bCs");
   const sz = doc.createElementNS(W, "w:sz"); sz.setAttribute("w:val", "22");
   const szCs = doc.createElementNS(W, "w:szCs"); szCs.setAttribute("w:val", "22");
-  rPr.appendChild(rFonts); rPr.appendChild(b); rPr.appendChild(bCs); rPr.appendChild(sz); rPr.appendChild(szCs);
+  const color = doc.createElementNS(W, "w:color"); color.setAttribute("w:val", "0000FF");
+  rPr.appendChild(rFonts); rPr.appendChild(b); rPr.appendChild(bCs); rPr.appendChild(sz); rPr.appendChild(szCs); rPr.appendChild(color);
 
   const t = doc.createElementNS(W, "w:t");
   t.setAttribute("xml:space", "preserve");
