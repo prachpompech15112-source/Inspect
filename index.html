@@ -251,28 +251,65 @@ if($("tap")) $("tap").addEventListener("change", save);
 function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 function fillCell(cell, text){
-  const tNodes = cell.getElementsByTagNameNS(W, "t");
-  if(tNodes.length){
-    tNodes[0].textContent = text;
-    tNodes[0].setAttribute("xml:space", "preserve");
-    for(let i=1; i<tNodes.length; i++) tNodes[i].textContent = "";
-    return;
+  // เก็บการจัดกึ่งกลาง/ชิดซ้ายเดิมของย่อหน้า (jc) ไว้ถ้ามี
+  const oldP = cell.getElementsByTagNameNS(W, "p")[0];
+  let oldJc = null;
+  if(oldP){
+    const oldPPr = oldP.getElementsByTagNameNS(W, "pPr")[0];
+    if(oldPPr){
+      const jc = oldPPr.getElementsByTagNameNS(W, "jc")[0];
+      if(jc) oldJc = jc.getAttribute("w:val");
+    }
   }
-  let p = cell.getElementsByTagNameNS(W, "p")[0];
-  if(!p){ p = cell.ownerDocument.createElementNS(W, "w:p"); cell.appendChild(p); }
-  const r = cell.ownerDocument.createElementNS(W, "w:r");
-  const rPr = cell.ownerDocument.createElementNS(W, "w:rPr");
-  const rFonts = cell.ownerDocument.createElementNS(W, "w:rFonts");
-  rFonts.setAttribute("w:ascii","Angsana New");
-  rFonts.setAttribute("w:hAnsi","Angsana New");
-  rFonts.setAttribute("w:cs","Angsana New");
-  const sz = cell.ownerDocument.createElementNS(W, "w:sz"); sz.setAttribute("w:val","32");
-  const szCs = cell.ownerDocument.createElementNS(W, "w:szCs"); szCs.setAttribute("w:val","32");
-  rPr.appendChild(rFonts); rPr.appendChild(sz); rPr.appendChild(szCs);
-  const t = cell.ownerDocument.createElementNS(W, "w:t");
-  t.setAttribute("xml:space","preserve");
+
+  // ลบย่อหน้าเก่าทั้งหมดในเซลล์ออก เพื่อล้างฟอนต์ Angsana New ขนาด 16 ที่ค้างอยู่
+  const ps = Array.from(cell.getElementsByTagNameNS(W, "p"));
+  ps.forEach(p => p.remove());
+
+  const doc = cell.ownerDocument;
+  const p = doc.createElementNS(W, "w:p");
+
+  // ตั้งค่าคุณสมบัติระดับย่อหน้า (pPr) ให้เป็น TH SarabunPSK ขนาด 11 (val="22") ตัวหนา
+  const pPr = doc.createElementNS(W, "w:pPr");
+  if(oldJc){
+    const jc = doc.createElementNS(W, "w:jc");
+    jc.setAttribute("w:val", oldJc);
+    pPr.appendChild(jc);
+  }
+  const pRPr = doc.createElementNS(W, "w:rPr");
+  const pFonts = doc.createElementNS(W, "w:rFonts");
+  pFonts.setAttribute("w:ascii", "TH SarabunPSK");
+  pFonts.setAttribute("w:hAnsi", "TH SarabunPSK");
+  pFonts.setAttribute("w:cs", "TH SarabunPSK");
+  const pB = doc.createElementNS(W, "w:b");
+  const pBCs = doc.createElementNS(W, "w:bCs");
+  const pSz = doc.createElementNS(W, "w:sz"); pSz.setAttribute("w:val", "22");
+  const pSzCs = doc.createElementNS(W, "w:szCs"); pSzCs.setAttribute("w:val", "22");
+  pRPr.appendChild(pFonts); pRPr.appendChild(pB); pRPr.appendChild(pBCs); pRPr.appendChild(pSz); pRPr.appendChild(pSzCs);
+  pPr.appendChild(pRPr);
+  p.appendChild(pPr);
+
+  // สร้างข้อความใหม่ (w:r) ด้วย TH SarabunPSK ขนาด 11 (val="22") ตัวหนา
+  const r = doc.createElementNS(W, "w:r");
+  const rPr = doc.createElementNS(W, "w:rPr");
+  const rFonts = doc.createElementNS(W, "w:rFonts");
+  rFonts.setAttribute("w:ascii", "TH SarabunPSK");
+  rFonts.setAttribute("w:hAnsi", "TH SarabunPSK");
+  rFonts.setAttribute("w:cs", "TH SarabunPSK");
+  const b = doc.createElementNS(W, "w:b");
+  const bCs = doc.createElementNS(W, "w:bCs");
+  const sz = doc.createElementNS(W, "w:sz"); sz.setAttribute("w:val", "22");
+  const szCs = doc.createElementNS(W, "w:szCs"); szCs.setAttribute("w:val", "22");
+  rPr.appendChild(rFonts); rPr.appendChild(b); rPr.appendChild(bCs); rPr.appendChild(sz); rPr.appendChild(szCs);
+
+  const t = doc.createElementNS(W, "w:t");
+  t.setAttribute("xml:space", "preserve");
   t.textContent = text;
-  r.appendChild(rPr); r.appendChild(t); p.appendChild(r);
+
+  r.appendChild(rPr);
+  r.appendChild(t);
+  p.appendChild(r);
+  cell.appendChild(p);
 }
 
 async function buildDocx(data){
