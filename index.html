@@ -378,7 +378,7 @@ function resetForm(){
 $("share").addEventListener("click", async ()=>{
   if(!lastFile) return;
   try{
-    await navigator.share({files:[lastFile], title:lastFile.name});
+    await navigator.share({files:[lastFile]});
     resetForm(); // ล้างข้อมูลทั้งหมดทันทีหลังจากส่งไฟล์เสร็จ
   }catch(e){}
 });
